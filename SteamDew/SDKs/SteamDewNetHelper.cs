@@ -82,7 +82,9 @@ private void InviteAccepted() {
 
 private void HandleGameLobbyJoinRequested(GameLobbyJoinRequested_t evt)
 {
-	SteamMatchmaking.JoinLobby(evt.m_steamIDLobby);
+	SteamDew.Log($"Requesting to join lobby (ID: {evt.m_steamIDLobby.m_SteamID.ToString()})");
+	this.RequestedLobby = evt.m_steamIDLobby;
+	this.InviteAccepted();
 }
 
 private void HandleLobbyDataUpdate(LobbyDataUpdate_t evt)
