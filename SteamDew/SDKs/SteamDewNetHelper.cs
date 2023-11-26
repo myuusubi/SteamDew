@@ -40,7 +40,7 @@ public SteamDewNetHelper()
 			foundLobby = true;
 			break;
 		} catch (Exception) {
-			SteamDew.Log( $"Failed to convert argument for +connect_lobby" );
+			SteamDew.Log($"Failed to convert argument for +connect_lobby");
 			continue;
 		}
 	}
@@ -49,7 +49,7 @@ public SteamDewNetHelper()
 		this.RequestedLobby.Clear();
 	} else if (!this.RequestedLobby.IsValid() || !this.RequestedLobby.IsLobby()) {
 		string l = this.RequestedLobby.m_SteamID.ToString();
-		SteamDew.Log( $"The Lobby ID ({l}) passed to +connect_lobby is invalid" );
+		SteamDew.Log($"The Lobby ID ({l}) passed to +connect_lobby is invalid");
 		this.RequestedLobby.Clear();
 	} else {
 		InviteAccepted();
@@ -64,7 +64,7 @@ public static StardewValley.Multiplayer GetGameMultiplayer() {
 		BindingFlags.NonPublic | BindingFlags.Static
 	);
 	if (f == null) {
-		SteamDew.Log( $"Failed to access StardewValley.Game1.multiplayer" );
+		SteamDew.Log($"Failed to access StardewValley.Game1.multiplayer");
 		return null;
 	}
 
@@ -74,7 +74,7 @@ public static StardewValley.Multiplayer GetGameMultiplayer() {
 private void InviteAccepted() {
 	StardewValley.Multiplayer multiplayer = SteamDewNetHelper.GetGameMultiplayer();
 	if (multiplayer == null) {
-		SteamDew.Log( $"Could not accept invite: Game1.multiplayer was null" );
+		SteamDew.Log($"Could not accept invite: Game1.multiplayer was null");
 		return;
 	}
 	multiplayer.inviteAccepted();
@@ -94,8 +94,8 @@ private void HandleLobbyDataUpdate(LobbyDataUpdate_t evt)
 }
 
 private void HandleSteamRelayNetworkStatus(SteamRelayNetworkStatus_t evt) {
-	if( evt.m_eAvail == ESteamNetworkingAvailability.k_ESteamNetworkingAvailability_Current ) {
-		SteamDew.Log( "Steam Datagram Relay is now available" );
+	if(evt.m_eAvail == ESteamNetworkingAvailability.k_ESteamNetworkingAvailability_Current) {
+		SteamDew.Log("Steam Datagram Relay is now available");
 	}
 }
 
@@ -107,12 +107,12 @@ public string GetUserID()
 private Client CreateClientHelper(CSteamID lobby)
 {
 	if (!lobby.IsValid() || !lobby.IsLobby()) {
-		SteamDew.Log( $"Could not create client: Invalid Lobby ID ({lobby.m_SteamID.ToString()})" );
+		SteamDew.Log($"Could not create client: Invalid Lobby ID ({lobby.m_SteamID.ToString()})");
 	}
 
 	StardewValley.Multiplayer multiplayer = SteamDewNetHelper.GetGameMultiplayer();
 	if (multiplayer == null) {
-		SteamDew.Log( $"Could not create client: Game1.multiplayer was null" );
+		SteamDew.Log($"Could not create client: Game1.multiplayer was null");
 		return null;
 	}
 	return multiplayer.InitClient(new SteamDewClient(lobby));
@@ -128,7 +128,7 @@ public Client GetRequestedClient()
 	if (this.RequestedLobby.IsValid() && this.RequestedLobby.IsLobby()) {
 		return CreateClientHelper(this.RequestedLobby);
 	}
-	SteamDew.Log( $"Could not GetRequestedClient: invalid requested lobby" );
+	SteamDew.Log($"Could not GetRequestedClient: invalid requested lobby");
 	return null;
 }
 
@@ -136,7 +136,7 @@ public Server CreateServer(IGameServer gameServer)
 {
 	StardewValley.Multiplayer multiplayer = SteamDewNetHelper.GetGameMultiplayer();
 	if (multiplayer == null) {
-		SteamDew.Log( $"Could not create server: Game1.multiplayer was null" );
+		SteamDew.Log($"Could not create server: Game1.multiplayer was null");
 		return null;
 	}
 	return multiplayer.InitServer(new SteamDewServer(gameServer));
@@ -170,7 +170,7 @@ public string GetLobbyData(object lobby, string key)
 {
 	CSteamID steamLobby = new CSteamID((ulong) lobby);
 	if (!steamLobby.IsValid() || !steamLobby.IsLobby()) {
-		SteamDew.Log( $"Tried to GetLobbyData for invalid Lobby: {steamLobby.m_SteamID.ToString()}" );
+		SteamDew.Log($"Tried to GetLobbyData for invalid Lobby: {steamLobby.m_SteamID.ToString()}");
 		return "";
 	}
 	return SteamMatchmaking.GetLobbyData(steamLobby, key);
@@ -180,7 +180,7 @@ public string GetLobbyOwnerName(object lobby)
 {
 	CSteamID steamLobby = new CSteamID((ulong) lobby);
 	if (!steamLobby.IsValid() || !steamLobby.IsLobby()) {
-		SteamDew.Log( $"Tried to GetLobbyOwnerName for invalid Lobby: {steamLobby.m_SteamID.ToString()}" );
+		SteamDew.Log($"Tried to GetLobbyOwnerName for invalid Lobby: {steamLobby.m_SteamID.ToString()}");
 		return "???";
 	}
 	CSteamID owner = SteamMatchmaking.GetLobbyOwner(steamLobby);
@@ -198,7 +198,7 @@ public object GetLobbyFromInviteCode(string inviteCode)
 	try {
 		decoded = Base36.Decode(inviteCode);
 	} catch(FormatException) {
-		SteamDew.Log( $"Invite is not valid Base36: {inviteCode}" );
+		SteamDew.Log($"Invite is not valid Base36: {inviteCode}");
 		return null;
 	}
 
@@ -207,7 +207,7 @@ public object GetLobbyFromInviteCode(string inviteCode)
 		return lobby.m_SteamID;
 	}
 
-	SteamDew.Log( $"Invite is not a valid Steam Lobby ID: {inviteCode}" );
+	SteamDew.Log($"Invite is not a valid Steam Lobby ID: {inviteCode}");
 	return null;
 }
 
@@ -219,9 +219,9 @@ public void ShowInviteDialog(object lobby)
 public void MutePlayer(string userId, bool mute) 
 {
 	if (mute) {
-		SteamDew.Log( $"Tried to mute player: {userId}; Not supported on Steam." );
+		SteamDew.Log($"Tried to mute player: {userId}; Not supported on Steam.");
 	} else {
-		SteamDew.Log( $"Tried to unmute player: {userId}; Not supported on Steam." );
+		SteamDew.Log($"Tried to unmute player: {userId}; Not supported on Steam.");
 	}
 }
 
@@ -232,7 +232,7 @@ public bool IsPlayerMuted(string userId)
 
 public void ShowProfile(string userId) 
 {
-	SteamDew.Log( $"Tried to show profile: {userId}; Not supported on Steam." );
+	SteamDew.Log($"Tried to show profile: {userId}; Not supported on Steam.");
 }
 
 } /* class SteamDewNetHelper */

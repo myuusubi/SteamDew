@@ -73,7 +73,7 @@ private static IEnumerable<CodeInstruction> PatchTranspiler(IEnumerable<CodeInst
 			if (f.DeclaringType != typeof(StardewValley.SDKs.SteamHelper)) {
 				break;
 			}
-			if (f.Name != "encryptedAppTicketResponse" ) {
+			if (f.Name != "encryptedAppTicketResponse") {
 				break;
 			}
 			state = 4;
@@ -95,7 +95,7 @@ private static IEnumerable<CodeInstruction> PatchTranspiler(IEnumerable<CodeInst
 			break;
 		}
 
-		switch( state ) {
+		switch (state) {
 		case 1:
 		case 2:
 		case 5:

@@ -46,7 +46,7 @@ private Callback<SteamNetConnectionStatusChangedCallback_t> SteamNetConnectionSt
 private CSteamID Lobby;
 private HSteamListenSocket Listener;
 private HSteamNetPollGroup JoinGroup;
-private HSteamNetPollGroup PollGroup;
+private HSteamNetPollGroup PeerGroup;
 
 private IntPtr[] Messages;
 
@@ -68,6 +68,25 @@ public override int connectionsCount
 
 public SteamDewServer(IGameServer gameServer) : base(gameServer)
 {
+}
+
+private PeerData FarmerToPeer(long farmerId) {
+	if (!this.Peers.ContainsLeft(farmerId)) {
+		return null;
+	}
+	return this.Peers.GetRight(farmerId);
+}
+
+private bool GetFarmerFromSteam(ref long farmerId, CSteamID steamID) {
+	PeerData peer = new PeerData();
+	peer.SteamID = steamID;
+
+	if (!this.Peers.ContainsRight(peer)) {
+		return false;
+	}
+
+	farmerId = this.Peers.GetLeft(peer);
+	return true;
 }
 
 private void UpdateLobbyPrivacy()
@@ -96,7 +115,7 @@ public override void initialize()
 	this.Listener = HSteamListenSocket.Invalid;
 
 	this.JoinGroup = HSteamNetPollGroup.Invalid;
-	this.PollGroup = HSteamNetPollGroup.Invalid;
+	this.PeerGroup = HSteamNetPollGroup.Invalid;
 
 	this.Messages = new IntPtr[256];
 
@@ -106,14 +125,14 @@ public override void initialize()
 
 	this.Peers = new Bimap<long, PeerData>();
 
+	SteamDew.Log($"Starting SteamDew Server");
+
 	int maxMembers = 4 * 2;
 
 	Multiplayer multiplayer = SteamDewNetHelper.GetGameMultiplayer();
 	if (multiplayer != null) {
 		maxMembers = multiplayer.playerLimit * 2;
 	}
-
-	SteamDew.Log($"Starting SteamDew Server (Max Members: {maxMembers})");
 
 	this.LobbyCreatedCallResult = CallResult<LobbyCreated_t>.Create(HandleLobbyCreated);
 
@@ -162,7 +181,7 @@ private void HandleLobbyCreated(LobbyCreated_t evt, bool IOFailure)
 	if (lobbyError == null) {
 		this.Listener = SteamNetworkingSockets.CreateListenSocketP2P(0, 0, null);
 		this.JoinGroup = SteamNetworkingSockets.CreatePollGroup();
-		this.PollGroup = SteamNetworkingSockets.CreatePollGroup();
+		this.PeerGroup = SteamNetworkingSockets.CreatePollGroup();
 
 		SteamMatchmaking.SetLobbyGameServer(this.Lobby, 0u, 0, SteamUser.GetSteamID());
 
@@ -184,15 +203,13 @@ private void HandleLobbyCreated(LobbyCreated_t evt, bool IOFailure)
 
 private void HandlePersonaStateChange(PersonaStateChange_t evt)
 {
-	PeerData peer = new PeerData();
-	peer.SteamID = new CSteamID(evt.m_ulSteamID);
-
-	if (!this.Peers.ContainsRight(peer)) {
+	CSteamID steamID = new CSteamID(evt.m_ulSteamID);
+	long farmerId = 0;
+	if (!this.GetFarmerFromSteam(ref farmerId, steamID)) {
 		return;
 	}
-
-	long farmerId = this.Peers.GetLeft(peer);
-	string userName = SteamFriends.GetFriendPersonaName(peer.SteamID);
+	
+	string userName = SteamFriends.GetFriendPersonaName(steamID);
 
 	/* Adapted from StardewValley.Multiplayer::broadcastUserName(long farmerId, string userName) */
 	foreach (KeyValuePair<long, Farmer> otherFarmer in Game1.otherFarmers) {
@@ -202,6 +219,49 @@ private void HandlePersonaStateChange(PersonaStateChange_t evt)
 		}
 		Game1.server.sendMessage(farmer.UniqueMultiplayerID, 16, Game1.serverHost.Value, farmerId, userName);
 	}
+}
+
+private void HandleConnecting(SteamNetConnectionStatusChangedCallback_t evt, CSteamID steamID)
+{
+	SteamDew.Log($"{steamID.m_SteamID.ToString()} connecting...");
+
+	if (gameServer.isUserBanned(steamID.m_SteamID.ToString())) {
+		SteamDew.Log($"{steamID.m_SteamID.ToString()} is banned");
+		SteamDewNetUtils.CloseConnection(evt.m_hConn);
+		return;
+	}
+
+	SteamNetworkingSockets.AcceptConnection(evt.m_hConn);
+}
+
+private void HandleConnected(SteamNetConnectionStatusChangedCallback_t evt, CSteamID steamID)
+{
+	SteamDew.Log($"{steamID.m_SteamID.ToString()} connected");
+
+	SteamNetworkingSockets.SetConnectionPollGroup(evt.m_hConn, this.JoinGroup);
+
+	this.onConnect(GetConnectionId(steamID));
+
+	gameServer.sendAvailableFarmhands(
+		steamID.m_SteamID.ToString(), 
+		delegate(OutgoingMessage msg) {
+			SteamDewNetUtils.SendMessage(evt.m_hConn, msg, bandwidthLogger);
+		}
+	);
+}
+
+private void HandleDisconnected(SteamNetConnectionStatusChangedCallback_t evt, CSteamID steamID)
+{
+	SteamDew.Log($"{steamID.m_SteamID.ToString()} disconnected");
+
+	this.onDisconnect(GetConnectionId(steamID));
+
+	long farmerId = 0;
+	if (this.GetFarmerFromSteam(ref farmerId, steamID)) {
+		this.playerDisconnected(farmerId);
+	}
+
+	SteamDewNetUtils.CloseConnection(evt.m_hConn);
 }
 
 private void HandleSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t evt) {
@@ -218,45 +278,14 @@ private void HandleSteamNetConnectionStatusChanged(SteamNetConnectionStatusChang
 
 	switch (evt.m_info.m_eState) {
 	case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_Connecting:
-		SteamDew.Log($"{steamID.m_SteamID.ToString()} connecting...");
-
-		if (gameServer.isUserBanned(steamID.m_SteamID.ToString())) {
-			SteamDew.Log($"{steamID.m_SteamID.ToString()} is banned");
-			SteamDewNetUtils.CloseConnection(evt.m_hConn);
-			return;
-		}
-
-		SteamNetworkingSockets.AcceptConnection(evt.m_hConn);
+		this.HandleConnecting(evt, steamID);
 		return;
 	case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_Connected:
-		SteamDew.Log($"{steamID.m_SteamID.ToString()} connected");
-
-		SteamNetworkingSockets.SetConnectionPollGroup(evt.m_hConn, this.JoinGroup);
-
-		this.onConnect(GetConnectionId(steamID));
-
-		gameServer.sendAvailableFarmhands(
-			steamID.m_SteamID.ToString(), 
-			delegate(OutgoingMessage msg) {
-				SteamDewNetUtils.SendMessage(evt.m_hConn, msg, bandwidthLogger);
-			}
-		);
+		this.HandleConnected(evt, steamID);
 		return;
 	case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ClosedByPeer:
 	case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
-		SteamDew.Log($"{steamID.m_SteamID.ToString()} disconnected");
-
-		this.onDisconnect(GetConnectionId(steamID));
-
-		PeerData peer = new PeerData();
-		peer.SteamID = steamID;
-		peer.Conn = evt.m_hConn;
-
-		if (this.Peers.ContainsRight(peer)) {
-			this.playerDisconnected(this.Peers.GetLeft(peer));
-		}
-
-		SteamDewNetUtils.CloseConnection(evt.m_hConn);
+		this.HandleDisconnected(evt, steamID);
 		return;
 	}
 }
@@ -284,9 +313,9 @@ public override void stopServer()
 		this.Listener = HSteamListenSocket.Invalid;
 	}
 
-	if (this.PollGroup != HSteamNetPollGroup.Invalid) {
-		SteamNetworkingSockets.DestroyPollGroup(this.PollGroup);
-		this.PollGroup = HSteamNetPollGroup.Invalid;
+	if (this.PeerGroup != HSteamNetPollGroup.Invalid) {
+		SteamNetworkingSockets.DestroyPollGroup(this.PeerGroup);
+		this.PeerGroup = HSteamNetPollGroup.Invalid;
 	}
 
 	if (this.JoinGroup != HSteamNetPollGroup.Invalid) {
@@ -295,12 +324,38 @@ public override void stopServer()
 	}
 }
 
-public override void receiveMessages()
+private void HandleFarmhandRequest(IncomingMessage msg, HSteamNetConnection msgConn, CSteamID steamID)
 {
-	if (!this.connected()) {
+	Multiplayer multiplayer = SteamDewNetHelper.GetGameMultiplayer();
+	if (multiplayer == null) {
+		SteamDewNetUtils.CloseConnection(msgConn);
 		return;
 	}
 
+	NetFarmerRoot farmer = multiplayer.readFarmer(msg.Reader);
+	gameServer.checkFarmhandRequest(
+		steamID.m_SteamID.ToString(), 
+		GetConnectionId(steamID), 
+		farmer, 
+		delegate(OutgoingMessage msg) {
+			SteamDewNetUtils.SendMessage(msgConn, msg, bandwidthLogger);
+		},
+		delegate {
+			long farmerId = farmer.Value.UniqueMultiplayerID;
+
+			SteamNetworkingSockets.SetConnectionUserData(msgConn, farmerId);
+			SteamNetworkingSockets.SetConnectionPollGroup(msgConn, this.PeerGroup);
+
+			PeerData peer = new PeerData();
+			peer.SteamID = steamID;
+			peer.Conn = msgConn;
+			this.Peers[farmerId] = peer;
+		}
+	);
+}
+
+private void PollFarmhandRequests()
+{
 	int msgCount = SteamNetworkingSockets.ReceiveMessagesOnPollGroup(this.JoinGroup, this.Messages, this.Messages.Length);
 	for (int m = 0; m < msgCount; ++m) {
 		IncomingMessage msg = new IncomingMessage();
@@ -326,35 +381,13 @@ public override void receiveMessages()
 			continue;
 		}
 
-		Multiplayer multiplayer = SteamDewNetHelper.GetGameMultiplayer();
-		if (multiplayer == null) {
-			SteamDewNetUtils.CloseConnection(msgConn);
-			continue;
-		}
-
-		NetFarmerRoot farmer = multiplayer.readFarmer(msg.Reader);
-		gameServer.checkFarmhandRequest(
-			steamID.m_SteamID.ToString(), 
-			GetConnectionId(steamID), 
-			farmer, 
-			delegate(OutgoingMessage msg) {
-				SteamDewNetUtils.SendMessage(msgConn, msg, bandwidthLogger);
-			},
-			delegate {
-				long farmerId = farmer.Value.UniqueMultiplayerID;
-
-				SteamNetworkingSockets.SetConnectionUserData(msgConn, farmerId);
-				SteamNetworkingSockets.SetConnectionPollGroup(msgConn, this.PollGroup);
-
-				PeerData peer = new PeerData();
-				peer.SteamID = steamID;
-				peer.Conn = msgConn;
-				this.Peers[farmerId] = peer;
-			}
-		);
+		this.HandleFarmhandRequest(msg, msgConn, steamID);
 	}
+}
 
-	msgCount = SteamNetworkingSockets.ReceiveMessagesOnPollGroup(this.PollGroup, this.Messages, this.Messages.Length);
+private void PollPeers()
+{
+	int msgCount = SteamNetworkingSockets.ReceiveMessagesOnPollGroup(this.PeerGroup, this.Messages, this.Messages.Length);
 	for (int m = 0; m < msgCount; ++m) {
 		IncomingMessage msg = new IncomingMessage();
 		HSteamNetConnection msgConn = HSteamNetConnection.Invalid;
@@ -362,20 +395,25 @@ public override void receiveMessages()
 		SteamDewNetUtils.HandleSteamMessage(this.Messages[m], msg, out msgConn, bandwidthLogger);
 
 		long farmerId = SteamNetworkingSockets.GetConnectionUserData(msgConn);
+		PeerData peer = this.FarmerToPeer(farmerId);
 
-		if (!this.Peers.ContainsLeft(farmerId)) {
-			SteamDewNetUtils.CloseConnection(msgConn);
-			continue;
-		}
-
-		PeerData peer = this.Peers.GetRight(farmerId);
-		if (peer.Conn != msgConn) {
+		if (peer == null || peer.Conn != msgConn) {
 			SteamDewNetUtils.CloseConnection(msgConn);
 			continue;
 		}
 
 		this.gameServer.processIncomingMessage(msg);
 	}
+}
+
+public override void receiveMessages()
+{
+	if (!this.connected()) {
+		return;
+	}
+
+	this.PollFarmhandRequests();
+	this.PollPeers();
 }
 
 private void sendMessage(PeerData peer, OutgoingMessage message)
@@ -391,10 +429,11 @@ private void sendMessage(PeerData peer, OutgoingMessage message)
 
 public override void sendMessage(long peerId, OutgoingMessage message)
 {
-	if (!this.Peers.ContainsLeft(peerId)) {
+	PeerData peer = this.FarmerToPeer(peerId);
+	if (peer == null) {
 		return;
 	}
-	this.sendMessage(this.Peers.GetRight(peerId), message);
+	this.sendMessage(peer, message);
 }
 
 public override bool connected()
@@ -402,7 +441,7 @@ public override bool connected()
 	if (this.Listener == HSteamListenSocket.Invalid) {
 		return false;
 	}
-	if (this.PollGroup == HSteamNetPollGroup.Invalid) {
+	if (this.PeerGroup == HSteamNetPollGroup.Invalid) {
 		return false;
 	}
 	return true;
@@ -431,10 +470,11 @@ public override string getInviteCode()
 
 public override string getUserId(long farmerId)
 {
-	if (!this.Peers.ContainsLeft(farmerId)) {
+	PeerData peer = this.FarmerToPeer(farmerId);
+	if (peer == null) {
 		return null;
 	}
-	return this.Peers.GetRight(farmerId).SteamID.m_SteamID.ToString();
+	return peer.SteamID.m_SteamID.ToString();
 }
 
 public override bool hasUserId(string userId)
@@ -449,12 +489,13 @@ public override bool hasUserId(string userId)
 
 public override float getPingToClient(long farmerId)
 {
-	if (!this.Peers.ContainsLeft(farmerId)) {
+	PeerData peer = this.FarmerToPeer(farmerId);
+	if (peer == null) {
 		return -1.0f;
 	}
 	SteamNetworkingQuickConnectionStatus status;
 	SteamNetworkingSockets.GetQuickConnectionStatus(
-		this.Peers.GetRight(farmerId).Conn,
+		peer.Conn,
 		out status
 	);
 	return status.m_nPing;
@@ -462,7 +503,6 @@ public override float getPingToClient(long farmerId)
 
 public override bool isConnectionActive(string connection_id)
 {
-	/* Is this ever used? */
 	foreach (PeerData p in this.Peers.RightValues) {
 		if (GetConnectionId(p.SteamID) == connection_id) {
 			return true;
@@ -473,10 +513,11 @@ public override bool isConnectionActive(string connection_id)
 
 public override string getUserName(long farmerId)
 {
-	if (!this.Peers.ContainsLeft(farmerId)) {
+	PeerData peer = this.FarmerToPeer(farmerId);
+	if (peer == null) {
 		return null;
 	}
-	return SteamFriends.GetFriendPersonaName(this.Peers.GetRight(farmerId).SteamID);
+	return SteamFriends.GetFriendPersonaName(peer.SteamID);
 }
 
 public override void setLobbyData(string key, string value)
@@ -494,17 +535,18 @@ public override void setLobbyData(string key, string value)
 public override void kick(long disconnectee)
 {
 	base.kick(disconnectee);
-	if (!this.Peers.ContainsLeft(disconnectee)) {
+	PeerData peer = this.FarmerToPeer(disconnectee);
+	if (peer == null) {
 		return;
 	}
 	Farmer player = Game1.player;
 	StardewValley.Object[] data = new StardewValley.Object[0];
-	sendMessage(this.Peers.GetRight(disconnectee), new OutgoingMessage(23, player, data));
+	sendMessage(peer, new OutgoingMessage(23, player, data));
 }
 
 public override void playerDisconnected(long disconnectee)
 {
-	if (!this.Peers.ContainsLeft(disconnectee)) {
+	if (this.FarmerToPeer(disconnectee) == null) {
 		return;
 	}
 	base.playerDisconnected(disconnectee);

@@ -115,7 +115,7 @@ private static IEnumerable<CodeInstruction> PatchTranspiler(IEnumerable<CodeInst
 			break;
 		}
 
-		switch( state ) {
+		switch (state) {
 		case 1:
 		case 3:
 			instr.opcode = OpCodes.Nop;

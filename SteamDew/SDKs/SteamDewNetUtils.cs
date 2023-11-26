@@ -59,7 +59,15 @@ public static void SendMessage(HSteamNetConnection msgConn, OutgoingMessage msg,
 
 	IntPtr msgPtr = Marshal.AllocHGlobal(msgSize);
 	Marshal.Copy(msgBytes, 0, msgPtr, msgSize);
-	SteamNetworkingSockets.SendMessageToConnection(msgConn, msgPtr, Convert.ToUInt32(msgBytes.Length), Constants.k_nSteamNetworkingSend_Reliable, out pOutMessageNumber);
+
+	SteamNetworkingSockets.SendMessageToConnection(
+		msgConn, 
+		msgPtr, 
+		Convert.ToUInt32(msgBytes.Length), 
+		Constants.k_nSteamNetworkingSend_Reliable, 
+		out pOutMessageNumber
+	);
+	
 	Marshal.FreeHGlobal(msgPtr);
 
 	if (bandwidthLogger == null) {

@@ -52,7 +52,7 @@ private string HandleLobbyEnterHelper(LobbyEnter_t evt, bool IOFailure)
 		return "Missing Protocol Version";
 	}
 
-	if( lobbyVersion != SteamDew.PROTOCOL_VERSION) {
+	if (lobbyVersion != SteamDew.PROTOCOL_VERSION) {
 		return $"Protocol Mismatch (Local: {SteamDew.PROTOCOL_VERSION}, Remote: {lobbyVersion})";
 	}
 
