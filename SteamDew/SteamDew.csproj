@@ -2,10 +2,20 @@
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
+    <EnableHarmony>true</EnableHarmony>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="GalaxyCSharp">
+      <HintPath>D:\SteamLibrary\steamapps\common\Stardew Valley\GalaxyCSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="Steamworks.NET">
+      <HintPath>D:\SteamLibrary\steamapps\common\Stardew Valley\Steamworks.NET.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
