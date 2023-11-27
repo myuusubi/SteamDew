@@ -9,7 +9,7 @@ Background
 #### Why was SteamDew made?
 
 While taking a break from coding our game, Mewnition, my friends and I would hop
-on our Stardew Valley farm to play together. We experiences lots of issues with
+on our Stardew Valley farm to play together. We experienced lots of issues with
 the netcode: players teleporting around, cave enemies rubber banding, item drops
 being unable to be picked up, frequent disconnects, etc.
 
