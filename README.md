@@ -57,6 +57,10 @@ it actually uses Steam Lobbies directly, and instantiated our Client and Server.
 Unlike `SteamNetHelper`, it does not inherit from `GalaxyNetHelper`. However, it
 does use the GalaxyInstance to get the Galaxy ID, so that players can still use
 their save files that used Galaxy IDs.
+- `SteamDewNetUtils.cs`: These are some utility functions used by our client and
+server implementations. They convert Stardew Valley's OutgoingMesssage into raw
+memory that can be passed to the Steam Networking Sockets, and convert received
+messages to Stardew Valley's IncomingMessage format. 
 
 #### Harmony Patches
 
@@ -87,6 +91,13 @@ called manually.
 
 #### Future Ideas
 
+- In `SteamDewNetUtils.cs`, it would be preferrable for us to use Steam's method
+to allocate messages. Currently, we are allocating memory ourself, and then free
+it after we are done sending a message. However, this requires two copies: first
+we copy from OutgoingMessage's byte buffer into unmanaged memory, then the Steam
+send method will allocate its own buffer and copy our unmanaged memory into its
+buffer. The performance & memory impact is probably negligible, but is is a part
+that could be improved.
 - It should be possible to instantiate a `GalaxyNetClient`/`GalaxyNetServer` in
 the `SteamDewNetHelper` as well. We may need to patch `GalaxyNetSocket` so that
 it does not interfere with our Steam sockets, and to also to add extra data for
