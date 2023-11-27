@@ -20,6 +20,8 @@ private CSteamID RequestedLobby;
 
 public SteamDewNetHelper()
 {
+	SteamDew.Log($"SteamDew NetHelper injected & instantiated");
+
 	this.LobbyUpdateListeners = new List<LobbyUpdateListener>();
 
 	this.GameLobbyJoinRequestedCallback = Callback<GameLobbyJoinRequested_t>.Create(HandleGameLobbyJoinRequested);

@@ -411,10 +411,6 @@ private void PollFarmhandRequests()
 
 		SteamDewNetUtils.HandleSteamMessage(this.Messages[m], msg, out msgConn, bandwidthLogger);
 
-		if (msg.MessageType != 2) {
-			continue;
-		}
-
 		SteamNetConnectionInfo_t info;
 		SteamNetworkingSockets.GetConnectionInfo(msgConn, out info);
 
@@ -441,7 +437,9 @@ private void PollFarmhandRequests()
 				this.sendMessage(peer, outgoing);
 			},
 			delegate {
-				this.HandleFarmhandRequest(msg, msgConn, steamID);
+				if (msg.MessageType == 2) {
+					this.HandleFarmhandRequest(msg, msgConn, steamID);
+				}
 			}
 		);
 	}
