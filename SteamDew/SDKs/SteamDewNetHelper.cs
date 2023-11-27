@@ -119,7 +119,7 @@ private Client CreateClientHelper(CSteamID lobby)
 		SteamDew.Log($"Could not create client: Game1.multiplayer was null");
 		return null;
 	}
-	return multiplayer.InitClient(new SteamDewClient(lobby));
+	return multiplayer.InitClient(new GalaxyFakeClient(lobby));
 }
 
 public Client CreateClient(object lobby) 
@@ -143,7 +143,7 @@ public Server CreateServer(IGameServer gameServer)
 		SteamDew.Log($"Could not create server: Game1.multiplayer was null");
 		return null;
 	}
-	return multiplayer.InitServer(new SteamDewServer(gameServer));
+	return multiplayer.InitServer(new GalaxyFakeServer(gameServer));
 }
 
 public void AddLobbyUpdateListener(LobbyUpdateListener listener) 

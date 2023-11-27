@@ -7,7 +7,10 @@ using System.Collections.Generic;
 
 namespace SteamDew.SDKs {
 
-public class SteamDewClient : GalaxyNetClient {
+public class SteamDewClient : SteamDewClientBase {
+
+private readonly Action<IncomingMessage, Action<OutgoingMessage>, Action> OnProcessingMessage;
+private readonly Action<OutgoingMessage, Action<OutgoingMessage>, Action> OnSendingMessage;
 
 private CallResult<LobbyEnter_t> LobbyEnterCallResult;
 
@@ -20,13 +23,16 @@ private HSteamNetConnection Conn;
 
 private IntPtr[] Messages;
 
-public SteamDewClient(CSteamID lobby) : base(new GalaxyID())
+public SteamDewClient(GalaxyID address, Action<IncomingMessage, Action<OutgoingMessage>, Action> onProcessingMessage, Action<OutgoingMessage, Action<OutgoingMessage>, Action> onSendingMessage)
 {
+	this.OnProcessingMessage = onProcessingMessage;
+	this.OnSendingMessage = onSendingMessage;
+
 	this.LobbyEnterCallResult = CallResult<LobbyEnter_t>.Create(HandleLobbyEnter);
 
 	this.SteamNetConnectionStatusChangedCallback = Callback<SteamNetConnectionStatusChangedCallback_t>.Create(HandleSteamNetConnectionStatusChanged);
 
-	this.Lobby = lobby;
+	this.Lobby = new CSteamID(address.ToUint64());
 	this.HostID = new CSteamID();
 	this.HostID.Clear();
 	this.Conn = HSteamNetConnection.Invalid;
@@ -154,6 +160,14 @@ public override void disconnect(bool neatly = true)
 	this.connectionMessage = null;
 }
 
+protected override void processIncomingMessage(IncomingMessage message)
+{
+	IncomingMessage messageTemp = message;
+	this.OnProcessingMessage(messageTemp, base.sendMessage, delegate {
+		base.processIncomingMessage(messageTemp);
+	});
+}
+
 protected override void receiveMessagesImpl()
 {
 	if (this.Conn == HSteamNetConnection.Invalid) {
@@ -173,17 +187,20 @@ protected override void receiveMessagesImpl()
 
 public override void sendMessage(OutgoingMessage message)
 {
-	if (this.Conn == HSteamNetConnection.Invalid) {
-		return;
-	}
-	SteamDewNetUtils.SendMessage(this.Conn, message, bandwidthLogger);
+	this.OnSendingMessage(message, base.sendMessage, delegate {
+		if (this.Conn == HSteamNetConnection.Invalid) {
+			return;
+		}
+		SteamDewNetUtils.SendMessage(this.Conn, message, bandwidthLogger);
+	});
 }
 
+/*
 public override string getUserID()
 {
-	/* return Convert.ToString(SteamUser.GetSteamID().m_SteamID); */
-	return Convert.ToString(GalaxyInstance.User().GetGalaxyID().ToUint64());
+	return Convert.ToString(SteamUser.GetSteamID().m_SteamID);
 }
+*/
 
 protected override string getHostUserName()
 {

@@ -7,7 +7,7 @@ using System.Collections.Generic;
 
 namespace SteamDew.SDKs {
 
-public class SteamDewServer : GalaxyNetServer {
+public class SteamDewServer : Server {
 
 private class PeerData {
 	public long FarmerID;
@@ -27,6 +27,9 @@ private class PeerData {
 		this.Farming = false;
 	}
 }
+
+private readonly Action<IncomingMessage, Action<OutgoingMessage>, Action> OnProcessingMessage;
+
 private CallResult<LobbyCreated_t> LobbyCreatedCallResult;
 
 private Callback<PersonaStateChange_t> PersonaStateChangeCallback;
@@ -56,8 +59,9 @@ public override int connectionsCount
 	}
 }
 
-public SteamDewServer(IGameServer gameServer) : base(gameServer)
+public SteamDewServer(IGameServer gameServer, object multiplayer, Action<IncomingMessage, Action<OutgoingMessage>, Action> onProcessingMessage) : base(gameServer)
 {
+	this.OnProcessingMessage = onProcessingMessage;
 }
 
 private PeerData FarmerToPeer(long farmerId) {
@@ -425,7 +429,20 @@ private void PollFarmhandRequests()
 			continue;
 		}
 
-		this.HandleFarmhandRequest(msg, msgConn, steamID);
+		PeerData peer = this.SteamToPeer(steamID);
+		if (peer == null || peer.Conn != msgConn) {
+			SteamDewNetUtils.CloseConnection(msgConn);
+			continue;
+		}
+
+		OnProcessingMessage(msg, 
+			delegate(OutgoingMessage outgoing) {
+				this.sendMessage(peer, outgoing);
+			},
+			delegate {
+				this.HandleFarmhandRequest(msg, msgConn, steamID);
+			}
+		);
 	}
 }
 
@@ -446,7 +463,14 @@ private void PollPeers()
 			continue;
 		}
 
-		this.gameServer.processIncomingMessage(msg);
+		OnProcessingMessage(msg, 
+			delegate(OutgoingMessage outgoing) {
+				this.sendMessage(peer, outgoing);
+			},
+			delegate {
+				this.gameServer.processIncomingMessage(msg);
+			}
+		);
 	}
 }
 
