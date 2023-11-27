@@ -31,8 +31,9 @@ The original Stardew Valley code uses Galaxy's P2P Networking (yes, even for all
 Steam players). This allows GoG Galaxy players to be in-game with Steam players,
 but at the cost of degrading the experience for Steam only players. We have some
 ideas of how to keep cross-platform play working, while also increasing network
-stability. However, this is not a high priority for me, though I would be happy
-to work with ConcernedApe & Chucklefish if they ever reach out.
+stability. However, this is not a high priority for me, as I do not have a copy
+of the game on GoG. That said, I would love to work with ConcernedApe to improve
+multiplayer stability if given the opportunity!
 
 #### Drop-in Replacements
 
@@ -83,11 +84,11 @@ logic to intercept the messages so they can be passed to mods. However, our own
 SteamDewClient could not be properly detected & hooked by SMAPI. Instead, we use
 `GalaxyFakeClient` to trigger SMAPI's normal client detection, then replace the
 SMAPI's `new SGalaxyNetClient(...)` with our `new SteamDewClient(...)`. We then
-store the hooks and call them ourselves.
+store the callbacks that SMAPI uses, and call them ourselves.
 - `SMultiplayer/InitServer.cs`: This patch works almost identically to the patch
 for `InitClient`, except it will replace `new SGalaxyNetServer(...)` with a call
-to `new SteamDewServer(...)`, again allowing us to receive the SMAPI hooks to be
-called manually.
+to `new SteamDewServer(...)`, again allowing us to receive the SMAPI callbacks &
+call them manually.
 
 #### Future Ideas
 
