@@ -10,34 +10,23 @@ namespace SteamDew.SDKs {
 public class SteamDewServer : Server {
 
 private class PeerData {
+	public long FarmerID;
 	public CSteamID SteamID;
 	public HSteamNetConnection Conn;
+	public bool Farming;
 
 	public PeerData()
 	{
+		this.FarmerID = Int64.MinValue;
+
 		this.SteamID = new CSteamID();
 		this.SteamID.Clear();
 
 		this.Conn = HSteamNetConnection.Invalid;
-	}
 
-	public override bool Equals(object obj)
-	{
-		if (obj == null) {
-			return false;
-		}
-		if (!(obj is PeerData)) {
-			return false;
-		}
-		return this.SteamID.Equals((obj as PeerData).SteamID);
-	}
-
-	public override int GetHashCode()
-	{
-		return this.SteamID.GetHashCode();
+		this.Farming = false;
 	}
 }
-
 private CallResult<LobbyCreated_t> LobbyCreatedCallResult;
 
 private Callback<PersonaStateChange_t> PersonaStateChangeCallback;
@@ -54,15 +43,16 @@ private ServerPrivacy Privacy;
 
 private Dictionary<string, string> LobbyData;
 
-private Bimap<long, PeerData> Peers;
+private Dictionary<CSteamID, PeerData> SteamPeerMap;
+private Dictionary<long, PeerData> FarmerPeerMap;
 
 public override int connectionsCount
 {
 	get {
-		if (this.Peers == null) {
+		if (this.SteamPeerMap == null) {
 			return 0;
 		}
-		return this.Peers.Count;
+		return this.SteamPeerMap.Count;
 	}
 }
 
@@ -71,22 +61,57 @@ public SteamDewServer(IGameServer gameServer) : base(gameServer)
 }
 
 private PeerData FarmerToPeer(long farmerId) {
-	if (!this.Peers.ContainsLeft(farmerId)) {
+	if (!this.FarmerPeerMap.ContainsKey(farmerId)) {
 		return null;
 	}
-	return this.Peers.GetRight(farmerId);
+	return this.FarmerPeerMap[farmerId];
 }
 
-private bool GetFarmerFromSteam(ref long farmerId, CSteamID steamID) {
-	PeerData peer = new PeerData();
-	peer.SteamID = steamID;
+private PeerData SteamToPeer(CSteamID steamID) {
+	if (!this.SteamPeerMap.ContainsKey(steamID)) {
+		return null;
+	}
+	return this.SteamPeerMap[steamID];
+}
 
-	if (!this.Peers.ContainsRight(peer)) {
+private bool TrySteamToFarmer(CSteamID steamID, ref long farmerId) {
+	PeerData peer = this.SteamToPeer(steamID);
+	if (peer == null || !peer.Farming || !this.FarmerPeerMap.ContainsKey(peer.FarmerID)) {
 		return false;
 	}
-
-	farmerId = this.Peers.GetLeft(peer);
+	farmerId = peer.FarmerID;
 	return true;
+}
+
+private string SteamToUser(CSteamID steamID) {
+	return Convert.ToString(steamID.m_SteamID);
+}
+
+private CSteamID UserToSteam(string userID) {
+	try {
+		ulong steamUL = Convert.ToUInt64(userID);
+		return new CSteamID(steamUL);
+	} catch(Exception) {
+		CSteamID steamID = new CSteamID();
+		steamID.Clear();
+		return steamID;
+	}
+}
+
+private string SteamToConn(CSteamID steamID)
+{
+	return "SN_" + this.SteamToUser(steamID);
+}
+
+private CSteamID ConnToSteam(string connID) {
+	CSteamID steamID = new CSteamID();
+	steamID.Clear();
+
+	if (connID.IndexOf("SN_") != 0) {
+		return steamID;
+	}
+
+	return this.UserToSteam(connID.Substring(3));
 }
 
 private void UpdateLobbyPrivacy()
@@ -123,7 +148,8 @@ public override void initialize()
 
 	this.LobbyData = new Dictionary<string, string>();
 
-	this.Peers = new Bimap<long, PeerData>();
+	this.SteamPeerMap = new Dictionary<CSteamID, PeerData>();
+	this.FarmerPeerMap = new Dictionary<long, PeerData>();
 
 	SteamDew.Log($"Starting SteamDew Server");
 
@@ -141,11 +167,6 @@ public override void initialize()
 
 	SteamAPICall_t steamAPICall = SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePrivate, maxMembers);
 	this.LobbyCreatedCallResult.Set(steamAPICall);
-}
-
-private string GetConnectionId(CSteamID steamID)
-{
-	return "SN_" + steamID.m_SteamID.ToString();
 }
 
 private string HandleLobbyCreatedHelper(LobbyCreated_t evt, bool IOFailure)
@@ -205,7 +226,7 @@ private void HandlePersonaStateChange(PersonaStateChange_t evt)
 {
 	CSteamID steamID = new CSteamID(evt.m_ulSteamID);
 	long farmerId = 0;
-	if (!this.GetFarmerFromSteam(ref farmerId, steamID)) {
+	if (!this.TrySteamToFarmer(steamID, ref farmerId)) {
 		return;
 	}
 	
@@ -223,7 +244,7 @@ private void HandlePersonaStateChange(PersonaStateChange_t evt)
 
 private void HandleConnecting(SteamNetConnectionStatusChangedCallback_t evt, CSteamID steamID)
 {
-	SteamDew.Log($"{steamID.m_SteamID.ToString()} connecting...");
+	SteamDew.Log($"{steamID.m_SteamID.ToString()} connecting to server...");
 
 	if (gameServer.isUserBanned(steamID.m_SteamID.ToString())) {
 		SteamDew.Log($"{steamID.m_SteamID.ToString()} is banned");
@@ -236,11 +257,19 @@ private void HandleConnecting(SteamNetConnectionStatusChangedCallback_t evt, CSt
 
 private void HandleConnected(SteamNetConnectionStatusChangedCallback_t evt, CSteamID steamID)
 {
-	SteamDew.Log($"{steamID.m_SteamID.ToString()} connected");
+	SteamDew.Log($"{steamID.m_SteamID.ToString()} connected to server");
+
+	PeerData peer = new PeerData();
+	peer.SteamID = steamID;
+	peer.Conn = evt.m_hConn;
+	peer.FarmerID = Int64.MinValue;
+	peer.Farming = false;
+
+	this.SteamPeerMap[steamID] = peer;
 
 	SteamNetworkingSockets.SetConnectionPollGroup(evt.m_hConn, this.JoinGroup);
 
-	this.onConnect(GetConnectionId(steamID));
+	this.onConnect(this.SteamToConn(steamID));
 
 	gameServer.sendAvailableFarmhands(
 		steamID.m_SteamID.ToString(), 
@@ -252,12 +281,12 @@ private void HandleConnected(SteamNetConnectionStatusChangedCallback_t evt, CSte
 
 private void HandleDisconnected(SteamNetConnectionStatusChangedCallback_t evt, CSteamID steamID)
 {
-	SteamDew.Log($"{steamID.m_SteamID.ToString()} disconnected");
+	SteamDew.Log($"{steamID.m_SteamID.ToString()} disconnected from server");
 
-	this.onDisconnect(GetConnectionId(steamID));
+	this.onDisconnect(this.SteamToConn(steamID));
 
 	long farmerId = 0;
-	if (this.GetFarmerFromSteam(ref farmerId, steamID)) {
+	if (this.TrySteamToFarmer(steamID, ref farmerId)) {
 		this.playerDisconnected(farmerId);
 	}
 
@@ -300,7 +329,7 @@ public override void stopServer()
 {
 	SteamDew.Log($"Stopping SteamDew server");
 
-	foreach (KeyValuePair<long, PeerData> peer in this.Peers) {
+	foreach (KeyValuePair<CSteamID, PeerData> peer in this.SteamPeerMap) {
 		SteamDewNetUtils.CloseConnection(peer.Value.Conn);
 	}
 
@@ -332,24 +361,34 @@ private void HandleFarmhandRequest(IncomingMessage msg, HSteamNetConnection msgC
 		return;
 	}
 
+	PeerData peer = this.SteamToPeer(steamID);
+	if (peer == null) {
+		SteamDewNetUtils.CloseConnection(msgConn);
+		return;
+	}
+
 	NetFarmerRoot farmer = multiplayer.readFarmer(msg.Reader);
+	long farmerId = farmer.Value.UniqueMultiplayerID;
+
+	SteamDew.Log($"Server received farmhand request (Peer ID: {steamID.m_SteamID.ToString()}, Farmer ID: {farmerId})");
+
 	gameServer.checkFarmhandRequest(
-		steamID.m_SteamID.ToString(), 
-		GetConnectionId(steamID), 
+		SteamToUser(steamID), 
+		SteamToConn(steamID), 
 		farmer, 
 		delegate(OutgoingMessage msg) {
 			SteamDewNetUtils.SendMessage(msgConn, msg, bandwidthLogger);
 		},
 		delegate {
-			long farmerId = farmer.Value.UniqueMultiplayerID;
+			SteamDew.Log($"Server accepted new farmhand (Peer ID: {steamID.m_SteamID.ToString()}, Farmer ID: {farmerId})");
 
 			SteamNetworkingSockets.SetConnectionUserData(msgConn, farmerId);
 			SteamNetworkingSockets.SetConnectionPollGroup(msgConn, this.PeerGroup);
 
-			PeerData peer = new PeerData();
-			peer.SteamID = steamID;
-			peer.Conn = msgConn;
-			this.Peers[farmerId] = peer;
+			peer.FarmerID = farmerId;
+			peer.Farming = true;
+
+			this.FarmerPeerMap[farmerId] = peer;			
 		}
 	);
 }
@@ -474,17 +513,17 @@ public override string getUserId(long farmerId)
 	if (peer == null) {
 		return null;
 	}
-	return peer.SteamID.m_SteamID.ToString();
+	return this.SteamToUser(peer.SteamID);
 }
 
 public override bool hasUserId(string userId)
 {
-	foreach (PeerData p in this.Peers.RightValues) {
-		if (p.SteamID.m_SteamID.ToString().Equals(userId)) {
-			return true;
-		}
+	CSteamID steamID = this.UserToSteam(userId);
+	PeerData peer = this.SteamToPeer(steamID);
+	if (peer == null || !peer.Farming) {
+		return false;
 	}
-	return false;
+	return true;
 }
 
 public override float getPingToClient(long farmerId)
@@ -503,12 +542,12 @@ public override float getPingToClient(long farmerId)
 
 public override bool isConnectionActive(string connection_id)
 {
-	foreach (PeerData p in this.Peers.RightValues) {
-		if (GetConnectionId(p.SteamID) == connection_id) {
-			return true;
-		}
+	CSteamID steamID = this.ConnToSteam(connection_id);
+	PeerData peer = this.SteamToPeer(steamID);
+	if (peer == null) {
+		return false;
 	}
-	return false;
+	return true;
 }
 
 public override string getUserName(long farmerId)
@@ -546,11 +585,13 @@ public override void kick(long disconnectee)
 
 public override void playerDisconnected(long disconnectee)
 {
-	if (this.FarmerToPeer(disconnectee) == null) {
+	PeerData peer = this.FarmerToPeer(disconnectee);
+	if (peer == null) {
 		return;
 	}
 	base.playerDisconnected(disconnectee);
-	this.Peers.RemoveLeft(disconnectee);
+	this.FarmerPeerMap.Remove(disconnectee);
+	this.SteamPeerMap.Remove(peer.SteamID);
 }
 
 } /* class SteamDewServer */
