@@ -290,6 +290,8 @@ private void HandleDisconnected(SteamNetConnectionStatusChangedCallback_t evt, C
 		this.playerDisconnected(farmerId);
 	}
 
+	this.SteamPeerMap.Remove(steamID);
+
 	SteamDewNetUtils.CloseConnection(evt.m_hConn);
 }
 
@@ -591,7 +593,6 @@ public override void playerDisconnected(long disconnectee)
 	}
 	base.playerDisconnected(disconnectee);
 	this.FarmerPeerMap.Remove(disconnectee);
-	this.SteamPeerMap.Remove(peer.SteamID);
 }
 
 } /* class SteamDewServer */
