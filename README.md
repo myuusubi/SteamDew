@@ -43,7 +43,7 @@ to be drop-in replacements for the original Stardew Valley networking code.
 Here's a breakdown:
 
 - `GalaxyFakeClient.cs`: A dummy class that extends `GalaxyNetClient` to add our
-logging information
+logging information. This helps us inject SMAPI itself (explained further down).
 - `GalaxyFakeServer.cs`: Another dummy class that extends `GalaxyNetServer` also
 to add our logging information
 - `SteamDewClient.cs`: The rewrite of `GalaxyNetClient` specifically for using a
