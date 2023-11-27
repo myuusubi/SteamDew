@@ -435,7 +435,8 @@ private void PollFarmhandRequests()
 			continue;
 		}
 
-		OnProcessingMessage(msg, 
+		this.OnProcessingMessage(
+			msg,
 			delegate(OutgoingMessage outgoing) {
 				this.sendMessage(peer, outgoing);
 			},
@@ -463,7 +464,7 @@ private void PollPeers()
 			continue;
 		}
 
-		OnProcessingMessage(msg, 
+		this.OnProcessingMessage(msg, 
 			delegate(OutgoingMessage outgoing) {
 				this.sendMessage(peer, outgoing);
 			},

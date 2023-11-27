@@ -7,7 +7,7 @@ using System.Collections.Generic;
 
 namespace SteamDew.SDKs {
 
-public class SteamDewClient : SteamDewClientBase {
+public class SteamDewClient : Client {
 
 private readonly Action<IncomingMessage, Action<OutgoingMessage>, Action> OnProcessingMessage;
 private readonly Action<OutgoingMessage, Action<OutgoingMessage>, Action> OnSendingMessage;
@@ -160,14 +160,6 @@ public override void disconnect(bool neatly = true)
 	this.connectionMessage = null;
 }
 
-protected override void processIncomingMessage(IncomingMessage message)
-{
-	IncomingMessage messageTemp = message;
-	this.OnProcessingMessage(messageTemp, base.sendMessage, delegate {
-		base.processIncomingMessage(messageTemp);
-	});
-}
-
 protected override void receiveMessagesImpl()
 {
 	if (this.Conn == HSteamNetConnection.Invalid) {
@@ -181,26 +173,40 @@ protected override void receiveMessagesImpl()
 
 		SteamDewNetUtils.HandleSteamMessage(this.Messages[m], msg, out msgConn, bandwidthLogger);
 
-		this.processIncomingMessage(msg);
+		IncomingMessage msgTemp = msg;
+		this.OnProcessingMessage(
+			msgTemp, 
+			delegate(OutgoingMessage outgoing) {
+				this.sendMessage(outgoing);
+			},
+			delegate {
+				this.processIncomingMessage(msgTemp);
+			}
+		);
 	}
 }
 
 public override void sendMessage(OutgoingMessage message)
 {
-	this.OnSendingMessage(message, base.sendMessage, delegate {
-		if (this.Conn == HSteamNetConnection.Invalid) {
-			return;
-		}
-		SteamDewNetUtils.SendMessage(this.Conn, message, bandwidthLogger);
-	});
+	if (this.Conn == HSteamNetConnection.Invalid) {
+		return;
+	}
+	this.OnSendingMessage(
+		message,
+		delegate(OutgoingMessage outgoing) {
+			SteamDewNetUtils.SendMessage(this.Conn, outgoing, bandwidthLogger);
+		},
+		delegate {
+			SteamDewNetUtils.SendMessage(this.Conn, message, bandwidthLogger);
+		}	
+	);
 }
 
-/*
 public override string getUserID()
 {
-	return Convert.ToString(SteamUser.GetSteamID().m_SteamID);
+	/* return Convert.ToString(SteamUser.GetSteamID().m_SteamID); */
+	return Convert.ToString(GalaxyInstance.User().GetGalaxyID().ToUint64());
 }
-*/
 
 protected override string getHostUserName()
 {
