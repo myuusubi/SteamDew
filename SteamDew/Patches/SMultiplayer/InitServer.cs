@@ -17,7 +17,7 @@ public InitServer()
 {
 	MethodInfo m = SteamDew.SMultiplayerType.GetMethod(
 		"InitServer", 
-		BindingFlags.Public |BindingFlags.Instance
+		BindingFlags.Public | BindingFlags.Instance
 	);
 
 	this.DeclaringType = m.DeclaringType;

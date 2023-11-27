@@ -17,7 +17,7 @@ public InitClient()
 {
 	MethodInfo m = SteamDew.SMultiplayerType.GetMethod(
 		"InitClient", 
-		BindingFlags.Public |BindingFlags.Instance
+		BindingFlags.Public | BindingFlags.Instance
 	);
 
 	this.DeclaringType = m.DeclaringType;
