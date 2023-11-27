@@ -7,7 +7,7 @@ using System.Collections.Generic;
 
 namespace SteamDew.SDKs {
 
-public class SteamDewServer : Server {
+public class SteamDewServer : GalaxyNetServer {
 
 private class PeerData {
 	public long FarmerID;

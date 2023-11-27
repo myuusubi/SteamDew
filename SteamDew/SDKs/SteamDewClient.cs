@@ -7,7 +7,7 @@ using System.Collections.Generic;
 
 namespace SteamDew.SDKs {
 
-public class SteamDewClient : Client {
+public class SteamDewClient : GalaxyNetClient {
 
 private CallResult<LobbyEnter_t> LobbyEnterCallResult;
 
@@ -20,7 +20,7 @@ private HSteamNetConnection Conn;
 
 private IntPtr[] Messages;
 
-public SteamDewClient(CSteamID lobby)
+public SteamDewClient(CSteamID lobby) : base(new GalaxyID())
 {
 	this.LobbyEnterCallResult = CallResult<LobbyEnter_t>.Create(HandleLobbyEnter);
 
