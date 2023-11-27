@@ -10,6 +10,8 @@ public class SteamDewClient : Client {
 
 private CallResult<LobbyEnter_t> LobbyEnterCallResult;
 
+private Callback<SteamNetConnectionStatusChangedCallback_t> SteamNetConnectionStatusChangedCallback;
+
 private CSteamID Lobby;
 private CSteamID HostID;
 
@@ -21,12 +23,19 @@ public SteamDewClient(CSteamID lobby)
 {
 	this.LobbyEnterCallResult = CallResult<LobbyEnter_t>.Create(HandleLobbyEnter);
 
+	this.SteamNetConnectionStatusChangedCallback = Callback<SteamNetConnectionStatusChangedCallback_t>.Create(HandleSteamNetConnectionStatusChanged);
+
 	this.Lobby = lobby;
 	this.HostID = new CSteamID();
 	this.HostID.Clear();
 	this.Conn = HSteamNetConnection.Invalid;
 
 	this.Messages = new IntPtr[256];
+}
+
+~SteamDewClient()
+{
+	this.SteamNetConnectionStatusChangedCallback.Unregister();
 }
 
 private string HandleLobbyEnterHelper(LobbyEnter_t evt, bool IOFailure)
@@ -82,7 +91,6 @@ private void HandleLobbyEnter(LobbyEnter_t evt, bool IOFailure)
 {
 	string lobbyError = HandleLobbyEnterHelper(evt, IOFailure);
 	if (lobbyError == null) {
-		SteamDew.Log($"Client connecting to server (ID: {this.HostID.m_SteamID.ToString()})...");
 		return;
 	}
 
@@ -90,6 +98,39 @@ private void HandleLobbyEnter(LobbyEnter_t evt, bool IOFailure)
 	this.connectionMessage = $"{failMsg} ({lobbyError})";
 
 	SteamDew.Log($"Error joining lobby ({lobbyError})");
+}
+
+private void HandleConnecting(SteamNetConnectionStatusChangedCallback_t evt) {
+	SteamDew.Log($"Client connecting to server (ID: {this.HostID.m_SteamID.ToString()})...");
+}
+
+private void HandleConnected(SteamNetConnectionStatusChangedCallback_t evt) {
+	SteamDew.Log($"Client connected to server (ID: {this.HostID.m_SteamID.ToString()})");
+}
+
+private void HandleDisconnected(SteamNetConnectionStatusChangedCallback_t evt) {
+	SteamDew.Log($"Client disconnected from server (ID: {this.HostID.m_SteamID.ToString()})");
+
+	this.timedOut = true;
+	this.pendingDisconnect = StardewValley.Multiplayer.DisconnectType.HostLeft;
+}
+
+private void HandleSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t evt) {
+	if (evt.m_hConn != this.Conn) {
+		return;
+	}
+	switch (evt.m_info.m_eState) {
+	case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_Connecting:
+		this.HandleConnecting(evt);
+		return;
+	case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_Connected:
+		this.HandleConnected(evt);
+		return;
+	case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ClosedByPeer:
+	case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
+		this.HandleDisconnected(evt);
+		return;
+	}
 }
 
 protected override void connectImpl()
@@ -108,6 +149,8 @@ public override void disconnect(bool neatly = true)
 
 	SteamDew.Log($"Client disconnecting from server (ID: {this.HostID.m_SteamID.ToString()})...");
 	SteamDewNetUtils.CloseConnection(this.Conn);
+
+	this.connectionMessage = null;
 }
 
 protected override void receiveMessagesImpl()

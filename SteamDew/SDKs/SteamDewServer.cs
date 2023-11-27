@@ -353,6 +353,9 @@ public override void stopServer()
 		SteamNetworkingSockets.DestroyPollGroup(this.JoinGroup);
 		this.JoinGroup = HSteamNetPollGroup.Invalid;
 	}
+
+	this.PersonaStateChangeCallback.Unregister();
+	this.SteamNetConnectionStatusChangedCallback.Unregister();
 }
 
 private void HandleFarmhandRequest(IncomingMessage msg, HSteamNetConnection msgConn, CSteamID steamID)
