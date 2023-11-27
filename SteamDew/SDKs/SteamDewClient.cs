@@ -1,3 +1,4 @@
+using Galaxy.Api;
 using StardewValley.Network;
 using StardewValley.SDKs;
 using Steamworks;
@@ -180,7 +181,8 @@ public override void sendMessage(OutgoingMessage message)
 
 public override string getUserID()
 {
-	return Convert.ToString(SteamUser.GetSteamID().m_SteamID);
+	/* return Convert.ToString(SteamUser.GetSteamID().m_SteamID); */
+	return Convert.ToString(GalaxyInstance.User().GetGalaxyID().ToUint64());
 }
 
 protected override string getHostUserName()

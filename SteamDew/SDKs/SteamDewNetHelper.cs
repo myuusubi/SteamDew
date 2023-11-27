@@ -1,3 +1,4 @@
+using Galaxy.Api;
 using StardewValley.Network;
 using StardewValley.SDKs;
 using Steamworks;
@@ -103,7 +104,8 @@ private void HandleSteamRelayNetworkStatus(SteamRelayNetworkStatus_t evt) {
 
 public string GetUserID() 
 {
-	return Convert.ToString(SteamUser.GetSteamID().m_SteamID);
+	/* return Convert.ToString(SteamUser.GetSteamID().m_SteamID); */
+	return Convert.ToString(GalaxyInstance.User().GetGalaxyID().ToUint64());
 }
 
 private Client CreateClientHelper(CSteamID lobby)

@@ -272,7 +272,7 @@ private void HandleConnected(SteamNetConnectionStatusChangedCallback_t evt, CSte
 	this.onConnect(this.SteamToConn(steamID));
 
 	gameServer.sendAvailableFarmhands(
-		steamID.m_SteamID.ToString(), 
+		"", /* TODO: Use SteamToUser(steamID) or a Galaxy ID? */
 		delegate(OutgoingMessage msg) {
 			SteamDewNetUtils.SendMessage(evt.m_hConn, msg, bandwidthLogger);
 		}
@@ -378,7 +378,7 @@ private void HandleFarmhandRequest(IncomingMessage msg, HSteamNetConnection msgC
 	SteamDew.Log($"Server received farmhand request (Peer ID: {steamID.m_SteamID.ToString()}, Farmer ID: {farmerId})");
 
 	gameServer.checkFarmhandRequest(
-		SteamToUser(steamID), 
+		"", /* TODO: Use SteamToUser(steamID) or a Galaxy ID? */
 		SteamToConn(steamID), 
 		farmer, 
 		delegate(OutgoingMessage msg) {
@@ -584,7 +584,7 @@ public override void kick(long disconnectee)
 		return;
 	}
 	Farmer player = Game1.player;
-	StardewValley.Object[] data = new StardewValley.Object[0];
+	object[] data = new object[0];
 	sendMessage(peer, new OutgoingMessage(23, player, data));
 }
 

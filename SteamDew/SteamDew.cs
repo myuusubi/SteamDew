@@ -26,8 +26,9 @@ public override void Entry(IModHelper helper)
 	var harmony = new Harmony(this.ModManifest.UniqueID);
 
 	Patches.Patcher[] patchers = new Patches.Patcher[] {
-		new Patches.SteamHelper.Initialize(),
-		new Patches.SteamHelper.OnEncryptedAppTicketResponse()
+		/* new Patches.SteamHelper.Initialize(), */
+		/* new Patches.SteamHelper.OnEncryptedAppTicketResponse() */
+		new Patches.SteamHelper.OnGalaxyStateChange()
 	};
 
 	foreach (Patches.Patcher patcher in patchers) {

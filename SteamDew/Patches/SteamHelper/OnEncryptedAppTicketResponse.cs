@@ -48,8 +48,6 @@ private static void InjectNetHelper(StardewValley.SDKs.SteamHelper helper)
 		BindingFlags.NonPublic | BindingFlags.Instance
 	);
 
-
-
 	scp.Invoke(helper, new object[] { connectionProgress + 4 });
 	scf.Invoke(helper, new object[] { true });
 
