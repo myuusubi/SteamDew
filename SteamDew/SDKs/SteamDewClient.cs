@@ -82,10 +82,13 @@ private string HandleLobbyEnterHelper(LobbyEnter_t evt, bool IOFailure)
 		if (hostID.IsValid()) {
 			this.HostID = hostID;
 
+			SteamNetworkingConfigValue_t[] pOptions = null;
+			int nOptions = SteamDewNetUtils.GetNetworkingOptions(out pOptions);
+
 			SteamNetworkingIdentity identity = new SteamNetworkingIdentity();
 			identity.Clear();
 			identity.SetSteamID(hostID);
-			this.Conn = SteamNetworkingSockets.ConnectP2P(ref identity, 0, 0, null);
+			this.Conn = SteamNetworkingSockets.ConnectP2P(ref identity, 0, nOptions, pOptions);
 
 			return null;
 		}
@@ -177,13 +180,15 @@ protected override void receiveMessagesImpl()
 		this.OnProcessingMessage(
 			msgTemp, 
 			delegate(OutgoingMessage outgoing) {
-				this.sendMessage(outgoing);
+				SteamDewNetUtils.SendMessage(this.Conn, outgoing, bandwidthLogger);
 			},
 			delegate {
 				this.processIncomingMessage(msgTemp);
 			}
 		);
 	}
+
+	SteamNetworkingSockets.FlushMessagesOnConnection(this.Conn);
 }
 
 public override void sendMessage(OutgoingMessage message)

@@ -19,6 +19,6 @@ public GalaxyFakeServer(IGameServer gameServer) : base(gameServer)
 	SteamDew.Log($"Destroyed Fake Galaxy Server");
 }
 
-}
+} /* class GalaxyFakeServer */
 
-}
+} /* namespace SteamDew.SDKs */

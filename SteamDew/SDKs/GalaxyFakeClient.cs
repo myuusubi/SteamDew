@@ -19,6 +19,6 @@ public GalaxyFakeClient(CSteamID lobby) : base(new GalaxyID(lobby.m_SteamID))
 	SteamDew.Log($"Destroyed Fake Galaxy Client");
 }
 
-}
+} /* class GalaxyFakeClient */
 
-}
+} /* namespace SteamDew.SDKs */

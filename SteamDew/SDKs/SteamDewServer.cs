@@ -3,7 +3,9 @@ using StardewValley.Network;
 using StardewValley.SDKs;
 using Steamworks;
 using System;
+using System.IO;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace SteamDew.SDKs {
 
@@ -204,7 +206,10 @@ private void HandleLobbyCreated(LobbyCreated_t evt, bool IOFailure)
 {
 	string lobbyError = HandleLobbyCreatedHelper(evt, IOFailure);
 	if (lobbyError == null) {
-		this.Listener = SteamNetworkingSockets.CreateListenSocketP2P(0, 0, null);
+		SteamNetworkingConfigValue_t[] pOptions = null;
+		int nOptions = SteamDewNetUtils.GetNetworkingOptions(out pOptions);
+
+		this.Listener = SteamNetworkingSockets.CreateListenSocketP2P(0, nOptions, pOptions);
 		this.JoinGroup = SteamNetworkingSockets.CreatePollGroup();
 		this.PeerGroup = SteamNetworkingSockets.CreatePollGroup();
 
@@ -376,6 +381,10 @@ private void HandleFarmhandRequest(IncomingMessage msg, HSteamNetConnection msgC
 		return;
 	}
 
+	if (peer.Farming) {
+		return;
+	}
+
 	NetFarmerRoot farmer = multiplayer.readFarmer(msg.Reader);
 	long farmerId = farmer.Value.UniqueMultiplayerID;
 
@@ -445,7 +454,7 @@ private void PollFarmhandRequests()
 	}
 }
 
-private void PollPeers()
+private void PollFarmers()
 {
 	int msgCount = SteamNetworkingSockets.ReceiveMessagesOnPollGroup(this.PeerGroup, this.Messages, this.Messages.Length);
 	for (int m = 0; m < msgCount; ++m) {
@@ -459,6 +468,10 @@ private void PollPeers()
 
 		if (peer == null || peer.Conn != msgConn) {
 			SteamDewNetUtils.CloseConnection(msgConn);
+			continue;
+		}
+
+		if (msg.MessageType == 2) {
 			continue;
 		}
 
@@ -480,7 +493,11 @@ public override void receiveMessages()
 	}
 
 	this.PollFarmhandRequests();
-	this.PollPeers();
+	this.PollFarmers();
+
+	foreach (KeyValuePair<CSteamID, PeerData> peer in this.SteamPeerMap) {
+		SteamNetworkingSockets.FlushMessagesOnConnection(peer.Value.Conn);
+	}
 }
 
 private void sendMessage(PeerData peer, OutgoingMessage message)

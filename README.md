@@ -9,9 +9,9 @@ Background
 #### Why was SteamDew made?
 
 While taking a break from coding our game, Mewnition, my friends and I would hop
-on our Stardew Valley farm to play together. We experienced lots of issues with
-the netcode: players teleporting around, cave enemies rubber banding, item drops
-being unable to be picked up, frequent disconnects, etc.
+on our Stardew Valley farm to relax. We experienced lots of network issues, such 
+as: players teleporting around, cave enemies rubber banding, being unable to get
+items from the ground, frequent disconnects, etc.
 
 A quick search for the word "disconnect" on the r/StardewValley subreddit showed
 that this was indeed a pretty common problem for PC players, with some hand-wavy
@@ -34,6 +34,13 @@ ideas of how to keep cross-platform play working, while also increasing network
 stability. However, this is not a high priority for me, as I do not have a copy
 of the game on GoG. That said, I would love to work with ConcernedApe to improve
 multiplayer stability if given the opportunity!
+
+#### LZ4 Compression
+
+SteamDew uses pre-built LZ4 binaries from the Lightweight Java Game Library for
+compressing large messages. This reduces the overall bandwidth requirements for
+the game, and fixes some multiplayer issues that occur once the save files grow
+larger. 
 
 #### Drop-in Replacements
 
@@ -92,17 +99,22 @@ call them manually.
 
 #### Future Ideas
 
-- In `SteamDewNetUtils.cs`, it would be preferrable for us to use Steam's method
-to allocate messages. Currently, we are allocating memory ourself, and then free
-it after we are done sending a message. However, this requires two copies: first
-we copy from OutgoingMessage's byte buffer into unmanaged memory, then the Steam
-send method will allocate its own buffer and copy our unmanaged memory into its
-buffer. The performance & memory impact is probably negligible, but is is a part
-that could be improved.
+- We started experiencing crashes with SteamDew when the save files for Stardew
+had gotten so large that it could not fit in the network buffer used by Steam's
+Networking Sockets. We introduced LZ4 compression to mitigate this problem, and
+we also increased the size of the network buffer as well. Though Stardew didn't
+crash when using the original Galaxy-based netcode, it likely only worked since
+Galaxy's P2P networking has a bigger network buffer by default. There is a high
+chance that it would also fail with enough players and a large enough save file
+(such as from year 3). Our compression solution only fixes the symptom, but the
+robust solution would be to rework the way Stardew Valley sends the save files.
 - It should be possible to instantiate a `GalaxyNetClient`/`GalaxyNetServer` in
 the `SteamDewNetHelper` as well. We may need to patch `GalaxyNetSocket` so that
 it does not interfere with our Steam sockets, and to also to add extra data for
 the Galaxy lobby which instructs SteamDew clients to connect using Steam.
 - In theory, cross-platform play could be done entirely using Steam Networking
-Sockets, using Steam's open-source GameNetworkingSockets library. We could use
-Galaxy's P2P messaging as a custom signaling client.
+Sockets, using Valve's open-source GameNetworkingSockets library. We could use
+Galaxy's P2P messaging as a custom signaling client, and use the Valve network
+library for the actual game. This requires a bigger rewrite, and more platform
+specific code; it is beyond the scope of what we can easily do without support
+from ConcernedApe.

@@ -11,11 +11,29 @@
 
   <ItemGroup>
     <Reference Include="GalaxyCSharp">
-      <HintPath>D:\SteamLibrary\steamapps\common\Stardew Valley\GalaxyCSharp.dll</HintPath>
+      <HintPath>$(GamePath)\GalaxyCSharp.dll</HintPath>
     </Reference>
     <Reference Include="Steamworks.NET">
-      <HintPath>D:\SteamLibrary\steamapps\common\Stardew Valley\Steamworks.NET.dll</HintPath>
+      <HintPath>$(GamePath)\Steamworks.NET.dll</HintPath>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="liblwjgl_lz4.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="liblwjgl_lz4.dylib">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="liblwjgl_lz4.so">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="lwjgl_license.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="lz4_license.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
