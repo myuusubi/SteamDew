@@ -1,23 +1,18 @@
-using Galaxy.Api;
 using HarmonyLib;
-using StardewValley;
-using StardewValley.Network;
-using StardewValley.SDKs;
-using Steamworks;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace SteamDew.Patches.SMultiplayer {
+namespace SteamDew.Patches.PProgram {
 
-public class InitServer : Patcher {
+public class SDK : Patcher {
 
-public InitServer()
+public SDK()
 {
-	MethodInfo m = SteamDew.SMultiplayerType.GetMethod(
-		"InitServer", 
-		BindingFlags.Public | BindingFlags.Instance
+	MethodInfo m = typeof(StardewValley.Program).GetMethod(
+		"get_sdk", 
+		BindingFlags.NonPublic | BindingFlags.Static
 	);
 
 	this.DeclaringType = m.DeclaringType;
@@ -41,21 +36,14 @@ private static IEnumerable<CodeInstruction> PatchTranspiler(IEnumerable<CodeInst
 			continue;
 		}
 		ConstructorInfo c = instr.operand as ConstructorInfo;
-		if (!c.DeclaringType.Equals(SteamDew.SGalaxyNetServerType)) {
-			continue;
+		if (c.DeclaringType.ToString() != "StardewValley.SDKs.SteamHelper") {
+			SteamDew.Active = false;
 		}
-		instr.operand = typeof(SDKs.SteamDewServer).GetConstructor(
-			new Type[] {
-				typeof(IGameServer),
-				typeof(object),
-				typeof(Action<IncomingMessage, Action<OutgoingMessage>, Action>),
-			}
-		);
 		break;
 	}
 	return instructions;
 }
 
-} /* class InitServer */
+} /* class SDK */
 
-} /* namespace SteamDew.Patcher.SMultiplayer */
+} /* namespace SteamDew.Patcher.PProgram */

@@ -1,13 +1,10 @@
-using Galaxy.Api;
 using HarmonyLib;
-using StardewValley;
-using Steamworks;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace SteamDew.Patches.SteamHelper {
+namespace SteamDew.Patches.PSteamHelper {
 
 public class OnGalaxyStateChange : Patcher {
 
@@ -69,4 +66,4 @@ private static IEnumerable<CodeInstruction> PatchTranspiler(IEnumerable<CodeInst
 
 } /* class OnGalaxyStateChange */
 
-} /* namespace SteamDew.Patcher.SteamHelper */
+} /* namespace SteamDew.Patcher.PSteamHelper */

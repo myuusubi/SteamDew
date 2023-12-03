@@ -2,7 +2,7 @@
   "Name": "SteamDew",
   "Author": "Mewsubi",
   "Version": "1.0.0",
-  "Description": "Better networking over Steamworks",
+  "Description": "A rewrite of Stardew Valley's networking backend to reduce disconnects & improve stability for Steam players",
   "UniqueID": "Mewsubi.SteamDew",
   "EntryDll": "SteamDew.dll",
   "MinimumApiVersion": "3.0.0",

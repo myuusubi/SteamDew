@@ -51,6 +51,8 @@ private Dictionary<string, string> LobbyData;
 private Dictionary<CSteamID, PeerData> SteamPeerMap;
 private Dictionary<long, PeerData> FarmerPeerMap;
 
+private IGameServer iGameServer;
+
 public override int connectionsCount
 {
 	get {
@@ -64,6 +66,7 @@ public override int connectionsCount
 public SteamDewServer(IGameServer gameServer, object multiplayer, Action<IncomingMessage, Action<OutgoingMessage>, Action> onProcessingMessage) : base(gameServer)
 {
 	this.OnProcessingMessage = onProcessingMessage;
+	this.iGameServer = gameServer;
 }
 
 private PeerData FarmerToPeer(long farmerId) {
@@ -161,7 +164,7 @@ public override void initialize()
 
 	int maxMembers = 4 * 2;
 
-	Multiplayer multiplayer = SteamDewNetHelper.GetGameMultiplayer();
+	Multiplayer multiplayer = SteamDew.GetGameMultiplayer();
 	if (multiplayer != null) {
 		maxMembers = multiplayer.playerLimit * 2;
 	}
@@ -220,6 +223,7 @@ private void HandleLobbyCreated(LobbyCreated_t evt, bool IOFailure)
 		}
 
 		SteamMatchmaking.SetLobbyData(this.Lobby, "protocolVersion", SteamDew.PROTOCOL_VERSION);
+		SteamMatchmaking.SetLobbyData(this.Lobby, "isSteamDew", "isYes");
 
 		SteamMatchmaking.SetLobbyJoinable(this.Lobby, true);
 
@@ -255,7 +259,7 @@ private void HandleConnecting(SteamNetConnectionStatusChangedCallback_t evt, CSt
 {
 	SteamDew.Log($"{steamID.m_SteamID.ToString()} connecting to server...");
 
-	if (gameServer.isUserBanned(steamID.m_SteamID.ToString())) {
+	if (this.iGameServer.isUserBanned(steamID.m_SteamID.ToString())) {
 		SteamDew.Log($"{steamID.m_SteamID.ToString()} is banned");
 		SteamDewNetUtils.CloseConnection(evt.m_hConn);
 		return;
@@ -280,7 +284,7 @@ private void HandleConnected(SteamNetConnectionStatusChangedCallback_t evt, CSte
 
 	this.onConnect(this.SteamToConn(steamID));
 
-	gameServer.sendAvailableFarmhands(
+	this.iGameServer.sendAvailableFarmhands(
 		"", /* TODO: Use SteamToUser(steamID) or a Galaxy ID? */
 		delegate(OutgoingMessage msg) {
 			SteamDewNetUtils.SendMessage(evt.m_hConn, msg, bandwidthLogger);
@@ -369,7 +373,7 @@ public override void stopServer()
 
 private void HandleFarmhandRequest(IncomingMessage msg, HSteamNetConnection msgConn, CSteamID steamID)
 {
-	Multiplayer multiplayer = SteamDewNetHelper.GetGameMultiplayer();
+	Multiplayer multiplayer = SteamDew.GetGameMultiplayer();
 	if (multiplayer == null) {
 		SteamDewNetUtils.CloseConnection(msgConn);
 		return;
@@ -390,7 +394,7 @@ private void HandleFarmhandRequest(IncomingMessage msg, HSteamNetConnection msgC
 
 	SteamDew.Log($"Server received farmhand request (Peer ID: {steamID.m_SteamID.ToString()}, Farmer ID: {farmerId})");
 
-	gameServer.checkFarmhandRequest(
+	this.iGameServer.checkFarmhandRequest(
 		"", /* TODO: Use SteamToUser(steamID) or a Galaxy ID? */
 		SteamToConn(steamID), 
 		farmer, 
@@ -480,7 +484,7 @@ private void PollFarmers()
 				this.sendMessage(peer, outgoing);
 			},
 			delegate {
-				this.gameServer.processIncomingMessage(msg);
+				this.iGameServer.processIncomingMessage(msg);
 			}
 		);
 	}
@@ -549,7 +553,7 @@ public override void offerInvite()
 
 public override string getInviteCode()
 {
-	return Base36.Encode(this.Lobby.m_SteamID);
+	return null;
 }
 
 public override string getUserId(long farmerId)

@@ -1,9 +1,7 @@
 using Galaxy.Api;
 using StardewValley.Network;
-using StardewValley.SDKs;
 using Steamworks;
 using System;
-using System.Collections.Generic;
 
 namespace SteamDew.SDKs {
 
@@ -18,12 +16,13 @@ private Callback<SteamNetConnectionStatusChangedCallback_t> SteamNetConnectionSt
 
 private CSteamID Lobby;
 private CSteamID HostID;
+private ClientState State;
 
 private HSteamNetConnection Conn;
 
 private IntPtr[] Messages;
 
-public SteamDewClient(GalaxyID address, Action<IncomingMessage, Action<OutgoingMessage>, Action> onProcessingMessage, Action<OutgoingMessage, Action<OutgoingMessage>, Action> onSendingMessage)
+public SteamDewClient(CSteamID lobby, ClientState state, CSteamID host, Action<IncomingMessage, Action<OutgoingMessage>, Action> onProcessingMessage, Action<OutgoingMessage, Action<OutgoingMessage>, Action> onSendingMessage)
 {
 	this.OnProcessingMessage = onProcessingMessage;
 	this.OnSendingMessage = onSendingMessage;
@@ -32,9 +31,11 @@ public SteamDewClient(GalaxyID address, Action<IncomingMessage, Action<OutgoingM
 
 	this.SteamNetConnectionStatusChangedCallback = Callback<SteamNetConnectionStatusChangedCallback_t>.Create(HandleSteamNetConnectionStatusChanged);
 
-	this.Lobby = new CSteamID(address.ToUint64());
-	this.HostID = new CSteamID();
-	this.HostID.Clear();
+	this.Lobby = lobby;
+	this.HostID = host;
+
+	this.State = state;
+
 	this.Conn = HSteamNetConnection.Invalid;
 
 	this.Messages = new IntPtr[256];
@@ -45,21 +46,27 @@ public SteamDewClient(GalaxyID address, Action<IncomingMessage, Action<OutgoingM
 	this.SteamNetConnectionStatusChangedCallback.Unregister();
 }
 
-private string HandleLobbyEnterHelper(LobbyEnter_t evt, bool IOFailure)
-{
-	if (IOFailure) {
-		return "IO Failure";
-	}
+private void HandleHost(CSteamID hostID) {
+	this.HostID = hostID;
 
-	CSteamID lobby = new CSteamID(evt.m_ulSteamIDLobby);
+	SteamNetworkingConfigValue_t[] pOptions = null;
+	int nOptions = SteamDewNetUtils.GetNetworkingOptions(out pOptions);
+
+	SteamNetworkingIdentity identity = new SteamNetworkingIdentity();
+	identity.Clear();
+	identity.SetSteamID(hostID);
+	this.Conn = SteamNetworkingSockets.ConnectP2P(ref identity, 0, nOptions, pOptions);
+}
+
+private string HandleLobby(CSteamID lobby) {
 	if (!lobby.IsValid() || !lobby.IsLobby()) {
 		SteamMatchmaking.LeaveLobby(lobby);
 		return $"Invalid Lobby ID: {lobby.m_SteamID.ToString()}";
 	}
 
-	if (this.Lobby.m_SteamID != evt.m_ulSteamIDLobby) {
+	if (!this.Lobby.Equals(lobby)) {
 		SteamMatchmaking.LeaveLobby(lobby);
-		return $"Wrong Lobby (ID: {lobby.m_SteamID.ToString()}";
+		return $"Joined Wrong Lobby (ID: {lobby.m_SteamID.ToString()}";
 	}
 
 	string lobbyVersion = SteamMatchmaking.GetLobbyData(lobby, "protocolVersion");
@@ -72,6 +79,12 @@ private string HandleLobbyEnterHelper(LobbyEnter_t evt, bool IOFailure)
 		return $"Protocol Mismatch (Local: {SteamDew.PROTOCOL_VERSION}, Remote: {lobbyVersion})";
 	}
 
+	string isSteamDew = SteamMatchmaking.GetLobbyData(lobby, "isSteamDew");
+
+	if (isSteamDew == "") {
+		return "Not a SteamDew Server (Report this, it should never happen)";
+	}
+
 	uint ip = 0u;
 	ushort port = 0;
 	CSteamID hostID = new CSteamID();
@@ -80,21 +93,26 @@ private string HandleLobbyEnterHelper(LobbyEnter_t evt, bool IOFailure)
 	if (SteamMatchmaking.GetLobbyGameServer(lobby, out ip, out port, out hostID)) {
 		SteamMatchmaking.LeaveLobby(lobby);
 		if (hostID.IsValid()) {
-			this.HostID = hostID;
-
-			SteamNetworkingConfigValue_t[] pOptions = null;
-			int nOptions = SteamDewNetUtils.GetNetworkingOptions(out pOptions);
-
-			SteamNetworkingIdentity identity = new SteamNetworkingIdentity();
-			identity.Clear();
-			identity.SetSteamID(hostID);
-			this.Conn = SteamNetworkingSockets.ConnectP2P(ref identity, 0, nOptions, pOptions);
-
+			this.HandleHost(hostID);
 			return null;
 		}
 	}
 
 	return $"Invalid Server ID: {hostID.m_SteamID.ToString()}";
+}
+
+private string HandleLobbyEnterHelper(LobbyEnter_t evt, bool IOFailure)
+{
+	if (IOFailure) {
+		return "IO Failure";
+	}
+
+	if (evt.m_EChatRoomEnterResponse != ((uint) EChatRoomEnterResponse.k_EChatRoomEnterResponseSuccess)) {
+		return "Failed to join lobby";
+	}
+
+	CSteamID lobby = new CSteamID(evt.m_ulSteamIDLobby);
+	return this.HandleLobby(lobby);
 }
 
 private void HandleLobbyEnter(LobbyEnter_t evt, bool IOFailure)
@@ -147,8 +165,18 @@ protected override void connectImpl()
 {
 	SteamDew.Log($"Client connecting to lobby (ID: {this.Lobby.m_SteamID.ToString()})...");
 
-	SteamAPICall_t steamAPICall = SteamMatchmaking.JoinLobby(this.Lobby);
-	this.LobbyEnterCallResult.Set(steamAPICall);
+	switch (this.State) {
+	case ClientState.JoiningLobby:
+		SteamAPICall_t steamAPICall = SteamMatchmaking.JoinLobby(this.Lobby);
+		this.LobbyEnterCallResult.Set(steamAPICall);
+		break;
+	case ClientState.JoinedLobby:
+		this.HandleLobby(this.Lobby);
+		break;
+	case ClientState.FoundHost:
+		this.HandleHost(this.HostID);
+		break;
+	}	
 }
 
 public override void disconnect(bool neatly = true)
@@ -209,7 +237,6 @@ public override void sendMessage(OutgoingMessage message)
 
 public override string getUserID()
 {
-	/* return Convert.ToString(SteamUser.GetSteamID().m_SteamID); */
 	return Convert.ToString(GalaxyInstance.User().GetGalaxyID().ToUint64());
 }
 
