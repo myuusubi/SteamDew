@@ -16,8 +16,6 @@ public static Type SMultiplayerType;
 public static Type SGalaxyNetClientType;
 public static Type SGalaxyNetServerType;
 
-public static bool Active;
-
 public static SDKs.ClientType LastClientType;
 
 private static object TryGetConst(Type declaringType, string name) {
@@ -31,10 +29,7 @@ private static object TryGetConst(Type declaringType, string name) {
 	return f.GetValue(null);
 }
 
-public override void Entry(IModHelper helper)
-{
-	SteamDew.Instance = this;
-
+private static bool DoStartupChecks() {
 	SteamDew.PROTOCOL_VERSION = "";
 
 	object oBuildType = SteamDew.TryGetConst(typeof(StardewValley.Program), "buildType");
@@ -42,11 +37,11 @@ public override void Entry(IModHelper helper)
 	object oProtocol = SteamDew.TryGetConst(typeof(StardewValley.Multiplayer), "protocolVersion");
 
 	if (oBuildType == null || oBuildSteam == null || oProtocol == null) {
-		return;
+		return false;
 	}
 
 	if (!(oBuildType is int) || !(oBuildSteam is int) || !(oProtocol is string)) {
-		return;
+		return false;
 	}
 
 	int buildType = (int) oBuildType;
@@ -55,7 +50,7 @@ public override void Entry(IModHelper helper)
 
 	if (buildType != buildSteam) {
 		SteamDew.Log("SteamDew does not work on non-Steam builds. Disabling.", LogLevel.Error);
-		return;
+		return false;
 	}
 
 	int checkLZ4 = 0;
@@ -66,12 +61,24 @@ public override void Entry(IModHelper helper)
 	}
 	if (checkLZ4 == 0) {
 		SteamDew.Log("LZ4 could not be loaded. Disabling SteamDew.", LogLevel.Error);
+		return false;
+	}
+
+	SteamDew.PROTOCOL_VERSION = protocol;
+
+	return true;
+}
+
+public override void Entry(IModHelper helper)
+{
+	SteamDew.Instance = this;
+
+	if (!SteamDew.DoStartupChecks()) {
 		return;
 	}
 
-	SteamDew.Log($"Passed startup checks. SteamDew initializing with protocol: {protocol}");
+	SteamDew.Log($"Passed startup checks. SteamDew initializing with protocol: {SteamDew.PROTOCOL_VERSION}", LogLevel.Info);
 
-	SteamDew.PROTOCOL_VERSION = protocol;
 	SteamDew.LastClientType = SDKs.ClientType.Unknown;
 
 	foreach (Type t in Assembly.GetAssembly(helper.GetType()).GetTypes()) {
