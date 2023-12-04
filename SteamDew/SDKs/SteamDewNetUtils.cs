@@ -137,7 +137,7 @@ public static void SendMessage(HSteamNetConnection msgConn, OutgoingMessage msg,
 		msgSize = headerSize + compressedSize;
 	}
 
-	SteamNetworkingSockets.SendMessageToConnection(
+	EResult result = SteamNetworkingSockets.SendMessageToConnection(
 		msgConn, 
 		msgPtr, 
 		Convert.ToUInt32(msgSize), 
@@ -146,6 +146,12 @@ public static void SendMessage(HSteamNetConnection msgConn, OutgoingMessage msg,
 	);
 	
 	Marshal.FreeHGlobal(msgPtr);
+
+	if (result != EResult.k_EResultOK) {
+		SteamDew.Log("Failed to send message. Closing connection.");
+		SteamDewNetUtils.CloseConnection(msgConn);
+		return;
+	}
 
 	if (bandwidthLogger == null) {
 		return;
