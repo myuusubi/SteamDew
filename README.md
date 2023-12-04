@@ -106,8 +106,6 @@ To keep the risks as minimal as possible, we transpiled code that we knew no mod
 would be willing to patch: Stardew Valley's networking SDK & SMAPI itself. These
 patches work as follows:
 
-- `PProgram/SDK.cs`: Detects whether or not this is actually a Steam client. The
-detection should work, but we do not own a copy of Stardew on GoG to check.
 - `PSteamHelper/OnGalaxyStateChange.cs`: This patches `new SteamNetHelper()`, to
 be replaced with `new SteamDewNetHelper()`, which drives the rest of SteamDew.
 - `PGalaxySocket/UpdateLobbyPrivacy.cs`: Removes the logic that would create the
@@ -150,4 +148,5 @@ still occur without SteamDew. As such, we have confirmed that our Harmony patch
 methods will work in both Stardew Valley 1.5.6 and the 1.6 Alpha.
 
 Simply change the `SteamDew/SteamDew.csproj` file, to set the `TargetFramework`
-to `net6.0` instead of `net5.0` to compile for 1.6.
+to `net6.0` instead of `net5.0` to compile for 1.6 specifically. Even without a
+recompile, the pre-built SteamDew binary should be able to work regardless.

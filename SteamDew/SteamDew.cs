@@ -8,7 +8,7 @@ namespace SteamDew {
 
 internal sealed class SteamDew : Mod {
 
-public const string PROTOCOL_VERSION = StardewValley.Multiplayer.protocolVersion;
+public static string PROTOCOL_VERSION;
 
 private static SteamDew Instance;
 
@@ -20,20 +20,40 @@ public static bool Active;
 
 public static SDKs.ClientType LastClientType;
 
+private static object TryGetConst(Type declaringType, string name) {
+	FieldInfo f = declaringType.GetField(
+		name,
+		BindingFlags.Public | BindingFlags.Static
+	);
+	if (f == null) {
+		return null;
+	}
+	return f.GetValue(null);
+}
+
 public override void Entry(IModHelper helper)
 {
 	SteamDew.Instance = this;
 
-	SteamDew.Active = true;
+	SteamDew.PROTOCOL_VERSION = "";
 
-	SteamDew.LastClientType = SDKs.ClientType.Unknown;
+	object oBuildType = SteamDew.TryGetConst(typeof(StardewValley.Program), "buildType");
+	object oBuildSteam = SteamDew.TryGetConst(typeof(StardewValley.Program), "build_steam");
+	object oProtocol = SteamDew.TryGetConst(typeof(StardewValley.Multiplayer), "protocolVersion");
 
-	var harmony = new Harmony(this.ModManifest.UniqueID);
+	if (oBuildType == null || oBuildSteam == null || oProtocol == null) {
+		return;
+	}
 
-	Patches.PProgram.SDK sdkChecker = new Patches.PProgram.SDK();
-	sdkChecker.Apply(harmony);
+	if (!(oBuildType is int) || !(oBuildSteam is int) || !(oProtocol is string)) {
+		return;
+	}
 
-	if (!SteamDew.Active) {
+	int buildType = (int) oBuildType;
+	int buildSteam = (int) oBuildSteam;
+	string protocol = (string) oProtocol;
+
+	if (buildType != buildSteam) {
 		SteamDew.Log("SteamDew does not work on non-Steam builds. Disabling.", LogLevel.Error);
 		return;
 	}
@@ -48,6 +68,11 @@ public override void Entry(IModHelper helper)
 		SteamDew.Log("LZ4 could not be loaded. Disabling SteamDew.", LogLevel.Error);
 		return;
 	}
+
+	SteamDew.Log($"Passed startup checks. SteamDew initializing with protocol: {protocol}");
+
+	SteamDew.PROTOCOL_VERSION = protocol;
+	SteamDew.LastClientType = SDKs.ClientType.Unknown;
 
 	foreach (Type t in Assembly.GetAssembly(helper.GetType()).GetTypes()) {
 		string s = t.ToString();
@@ -66,6 +91,8 @@ public override void Entry(IModHelper helper)
 		}
 		SteamDew.Log($"Found Type: {s}");
 	}
+
+	var harmony = new Harmony(this.ModManifest.UniqueID);
 
 	Patches.Patcher[] patchers = new Patches.Patcher[] {
 		new Patches.PFarmhandMenu.Update(),
